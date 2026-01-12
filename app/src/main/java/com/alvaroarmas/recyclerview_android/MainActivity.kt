@@ -8,6 +8,7 @@ import android.widget.TextView
 import android.widget.Toast
 import android.widget.Button
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -32,8 +33,7 @@ class MainActivity : AppCompatActivity() {
                                         Device("A4:B5:C6:D7:E8:F9", "Lenovo"),
                                         Device("A5:B6:C7:D8:E9:F0", "Wireless Mouse"))
         val customAdapter = CustomAdapter(dataset) { position ->
-            // Manejar el clic aquí
-            Toast.makeText(this, "MAC: ${dataset.get(position).mac}", Toast.LENGTH_SHORT).show()
+            AlertDialog.Builder(this).setTitle("Device details").setMessage("Name: ${dataset.get(position).name}\nMac: ${dataset.get(position).mac}").show()
         }
         val recyclerView = findViewById<RecyclerView>(R.id.recyclerView)
         val lm: RecyclerView.LayoutManager = LinearLayoutManager(this)
