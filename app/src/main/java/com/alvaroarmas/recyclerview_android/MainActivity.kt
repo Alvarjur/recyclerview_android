@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.Button
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -25,7 +26,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        val dataset = arrayOf<Device>(Device("A1:B2:C3:D4:E5:F6", "AirPods"),
+        val dataset = mutableListOf<Device>(Device("A1:B2:C3:D4:E5:F6", "AirPods"),
                                         Device("A2:B3:C4:D5:E6:F7", "Xiaomi"),
                                         Device("A3:B4:C5:D6:E7:F8", "DELL"),
                                         Device("A4:B5:C6:D7:E8:F9", "Lenovo"),
@@ -38,14 +39,33 @@ class MainActivity : AppCompatActivity() {
         val lm: RecyclerView.LayoutManager = LinearLayoutManager(this)
         recyclerView?.setLayoutManager(lm)
         recyclerView?.setAdapter(customAdapter)
+
+        val button = findViewById<Button>(R.id.button2)
+        button.setOnClickListener {
+            runOnUiThread {
+                dataset.add(Device(generateMac(), generateName()))
+                recyclerView.adapter?.notifyItemInserted(dataset.size - 1)
+
+                }
+            }
+
+
     }
 }
+fun generateMac(): String {
+    return List(6) {
+        (0..255).random().toString(16).padStart(2, '0')
+    }.joinToString(":").uppercase()
+}
 
+fun generateName(): String {
+    return "Device${(Math.random() * 2000).toInt()}"
+}
 class Device(val mac: String, val name: String)
 {
 
 }
-class CustomAdapter(private val dataSet: Array<Device>, private val onItemClick: (Int) -> Unit) :
+class CustomAdapter(private val dataSet: MutableList<Device>, private val onItemClick: (Int) -> Unit) :
     RecyclerView.Adapter<CustomAdapter.ViewHolder>() {
 
 
