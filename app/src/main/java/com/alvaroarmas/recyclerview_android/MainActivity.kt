@@ -1,6 +1,13 @@
 package com.alvaroarmas.recyclerview_android
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,13 +17,24 @@ import android.widget.Button
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import java.io.File
+import android.bluetooth.BluetoothManager
+import androidx.annotation.RequiresPermission
+import kotlin.text.clear
 
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), BLEconnDialog.BLEConnectionCallback {
+    companion object {
+        var dataset = mutableListOf<BluetoothDevice>()
+        lateinit var bleDialog: BLEconnDialog
+    }
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -27,13 +45,13 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        val dataset = mutableListOf<Device>(Device("A1:B2:C3:D4:E5:F6", "AirPods"),
-                                        Device("A2:B3:C4:D5:E6:F7", "Xiaomi"),
-                                        Device("A3:B4:C5:D6:E7:F8", "DELL"),
-                                        Device("A4:B5:C6:D7:E8:F9", "Lenovo"),
-                                        Device("A5:B6:C7:D8:E9:F0", "Wireless Mouse"))
+        requestBluetoothPermissionAndUpdate()
+
+
         val customAdapter = CustomAdapter(dataset) { position ->
-            AlertDialog.Builder(this).setTitle("Device details").setMessage("Name: ${dataset.get(position).name}\nMac: ${dataset.get(position).mac}").show()
+            showBLEDialog(dataset[position])
+
+            //AlertDialog.Builder(this).setTitle("Device details").setMessage("Name: $position.").show()
         }
         val recyclerView = findViewById<RecyclerView>(R.id.recyclerView)
         val lm: RecyclerView.LayoutManager = LinearLayoutManager(this)
@@ -43,13 +61,120 @@ class MainActivity : AppCompatActivity() {
         val button = findViewById<Button>(R.id.button2)
         button.setOnClickListener {
             runOnUiThread {
-                dataset.add(Device(generateMac(), generateName()))
-                recyclerView.adapter?.notifyItemInserted(dataset.size - 1)
+                updatePairedDevices()
+
 
                 }
             }
 
 
+
+    }
+
+    override fun onConnectionSuccess(gatt: BluetoothGatt) {
+        runOnUiThread {
+            Toast.makeText(this, "Connectat amb èxit!", Toast.LENGTH_SHORT).show()
+            // Aquí pots fer operacions amb el gatt connectat
+            // Per exemple: llegir/escribre característiques
+        }
+    }
+
+    override fun onConnectionFailed(error: String) {
+        runOnUiThread {
+            Toast.makeText(this, "Error de connexió: $error", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onConnectionCancelled() {
+        runOnUiThread {
+            Toast.makeText(this, "Connexió cancel·lada", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onReceivedImage(file: File) {
+        runOnUiThread {
+            val filename = file.name
+            Toast.makeText(this, "Imatge rebuda: $filename", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // DIALOG : cridar aquesta funció per mostrar-lo
+////////////////////////////////////////////////
+    private fun showBLEDialog(device: BluetoothDevice) {
+        bleDialog = BLEconnDialog(this, device, this)
+        bleDialog?.apply {
+            setCancelable(false)
+            setOnCancelListener {
+                onConnectionCancelled()
+            }
+            show()
+        }
+    }
+
+
+    private val REQUEST_CODE_BLUETOOTH = 100 // es pot posar un nombre aleatori no emprat en cap altre lloc
+
+    private fun requestBluetoothPermissionAndUpdate() {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+ requereix BLUETOOTH_CONNECT
+            Manifest.permission.BLUETOOTH_CONNECT
+        } else {
+            // Versions anteriors
+            Manifest.permission.BLUETOOTH
+        }
+
+        if (ContextCompat.checkSelfPermission(this, permission) !=
+            PackageManager.PERMISSION_GRANTED) {
+
+            // Demanar el permís
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(permission),
+                REQUEST_CODE_BLUETOOTH
+            )
+        } else {
+            // Permís ja concedit - llegir dispositius
+            updatePairedDevices()
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == REQUEST_CODE_BLUETOOTH) {
+            if (grantResults.isNotEmpty() && grantResults[0] ==
+                PackageManager.PERMISSION_GRANTED) {
+                // Permís concedit - llegir dispositius
+                updatePairedDevices()
+            } else {
+                // Permís denegat
+                Toast.makeText(this, "Permís necessari per a llegir Bluetooth",
+                    Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    fun updatePairedDevices() {
+        // empty list
+        dataset.clear()
+
+        // update list
+        val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
+        val bluetoothAdapter = bluetoothManager.adapter
+        for( elem in bluetoothAdapter.bondedDevices.filter { device ->
+            // Filtrar per dispositius BLE
+            device.type == BluetoothDevice.DEVICE_TYPE_LE ||
+                    device.type == BluetoothDevice.DEVICE_TYPE_DUAL ||
+                    device.type == BluetoothDevice.DEVICE_TYPE_UNKNOWN
+        } ) {
+            // afegim element al dataset
+            dataset.add( elem )
+        }
     }
 }
 fun generateMac(): String {
@@ -65,7 +190,7 @@ class Device(val mac: String, val name: String)
 {
 
 }
-class CustomAdapter(private val dataSet: MutableList<Device>, private val onItemClick: (Int) -> Unit) :
+class CustomAdapter(private val dataSet: MutableList<BluetoothDevice>, private val onItemClick: (Int) -> Unit) :
     RecyclerView.Adapter<CustomAdapter.ViewHolder>() {
 
 
@@ -93,8 +218,9 @@ class CustomAdapter(private val dataSet: MutableList<Device>, private val onItem
     // Replace the contents of a view (invoked by the layout manager)
 
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.textView.text = "${dataSet[position].name}\n\t\t${dataSet[position].mac}"
+        holder.textView.text = "${dataSet[position].name}"
 
         holder.itemView.setOnClickListener {
             onItemClick(position)
@@ -105,3 +231,4 @@ class CustomAdapter(private val dataSet: MutableList<Device>, private val onItem
     override fun getItemCount() = dataSet.size
 
 }
+
